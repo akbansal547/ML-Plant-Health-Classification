@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Plant Health Classifier</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <h1>Plant Health Classifier</h1>
+
+  <div class="button-container">
+    <button id="startBtn" type="button">Start Webcam</button>
+    <button id="stopBtn" type="button" disabled>Stop Webcam</button>
+  </div>
+
+  <div id="status">Idle</div>
+
+  <div id="webcam-container"></div>
+  <div id="label-container"></div>
+
+  <h2>Sample Images</h2>
+  <div class="sample-container" id="sample-container">
+    <img src="healthy1.jpg" alt="Healthy Sample 1" data-path="healthy1.jpg" />
+    <img src="healthy2.jpg" alt="Healthy Sample 2" data-path="healthy2.jpg" />
+    <img src="healthy3.jpg" alt="Healthy Sample 3" data-path="healthy3.jpg" />
+
+    <img src="rust1.jpg" alt="Rust Sample 1" data-path="rust1.jpg" />
+    <img src="rust2.jpg" alt="Rust Sample 2" data-path="rust2.jpg" />
+    <img src="rust3.jpg" alt="Rust Sample 3" data-path="rust3.jpg" />
+
+    <img src="mildew1.jpg" alt="Mildew Sample 1" data-path="mildew1.jpg" />
+    <img src="mildew2.jpg" alt="Mildew Sample 2" data-path="mildew2.jpg" />
+    <img src="mildew3.jpg" alt="Mildew Sample 3" data-path="mildew3.jpg" />
+  </div>
+
+  <!-- No backend or ML scripts here. Will be added in part 2 -->
+</body>
+</html>
