@@ -34,6 +34,144 @@
     <img src="mildew3.jpg" alt="Mildew Sample 3" data-path="mildew3.jpg" />
   </div>
 
-  <!-- No backend or ML scripts here. Will be added in part 2 -->
+  <!-- TensorFlow and Teachable Machine -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+
+  <!-- Main script -->
+  <script>
+    const URL = "https://teachablemachine.withgoogle.com/models/n9PWK3ckT/";
+
+    let model;
+    let webcam;
+    let labelContainer;
+    let maxPredictions = 0;
+    let isRunning = false;
+    let loopTimer = null;
+
+    const $ = (id) => document.getElementById(id);
+    const statusEl = $("status");
+
+    document.addEventListener("DOMContentLoaded", () => {
+      $("startBtn").addEventListener("click", start);
+      $("stopBtn").addEventListener("click", stop);
+      labelContainer = $("label-container");
+
+      const sampleContainer = $("sample-container");
+      if (sampleContainer) {
+        sampleContainer.addEventListener("click", (e) => {
+          const target = e.target;
+          if (target.tagName === "IMG" && target.dataset.path) {
+            loadSampleImage(target.dataset.path);
+          }
+        });
+      }
+    });
+
+    async function start() {
+      if (isRunning) return;
+
+      setStatus("loading model...");
+      try {
+        await loadModel();
+      } catch (e) {
+        setStatus("failed to load model");
+        console.error(e);
+        return;
+      }
+
+      setStatus("starting webcam...");
+      try {
+        await startWebcam();
+      } catch (e) {
+        setStatus("webcam permission denied or unavailable");
+        console.error(e);
+        return;
+      }
+
+      labelContainer.innerHTML = "";
+      for (let i = 0; i < maxPredictions; i++) {
+        const div = document.createElement("div");
+        labelContainer.appendChild(div);
+      }
+
+      $("startBtn").disabled = true;
+      $("stopBtn").disabled = false;
+      isRunning = true;
+
+      setStatus("running");
+      loop();
+    }
+
+    async function stop() {
+      if (!isRunning) return;
+
+      isRunning = false;
+      $("startBtn").disabled = false;
+      $("stopBtn").disabled = true;
+
+      if (loopTimer) {
+        clearTimeout(loopTimer);
+        loopTimer = null;
+      }
+
+      try {
+        await webcam.stop();
+      } catch (_) {}
+
+      $("webcam-container").innerHTML = "";
+      setStatus("stopped");
+    }
+
+    async function loadModel() {
+      if (model) return;
+      const modelURL = URL + "model.json";
+      const metadataURL = URL + "metadata.json";
+      model = await tmImage.load(modelURL, metadataURL);
+      maxPredictions = model.getTotalClasses();
+    }
+
+    async function startWebcam() {
+      const flip = true;
+      webcam = new tmImage.Webcam(200, 200, flip);
+      await webcam.setup();
+      await webcam.play();
+      $("webcam-container").appendChild(webcam.canvas);
+    }
+
+    async function loop() {
+      if (!isRunning) return;
+      webcam.update();
+      await predict(webcam.canvas);
+      loopTimer = setTimeout(loop, 100);
+    }
+
+    async function predict(input) {
+      if (!model) return;
+      const prediction = await model.predict(input);
+      for (let i = 0; i < maxPredictions; i++) {
+        const p = prediction[i];
+        const text = `${p.className}: ${(p.probability * 100).toFixed(0)}%`;
+        labelContainer.childNodes[i].textContent = text;
+      }
+    }
+
+    async function loadSampleImage(imagePath) {
+      setStatus("predicting sample...");
+      const img = new Image();
+      img.src = imagePath;
+      img.onload = async () => {
+        await predict(img);
+        setStatus(isRunning ? "running" : "idle");
+      };
+      img.onerror = () => {
+        setStatus("could not load sample image");
+      };
+    }
+
+    function setStatus(text) {
+      if (statusEl) statusEl.textContent = text;
+    }
+  </script>
 </body>
 </html>
