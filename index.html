@@ -1,177 +1,78 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Plant Health Classifier</title>
-  <link rel="stylesheet" href="style.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plant Health Classifier</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>Plant Health Classifier</h1>
+    <h1>Plant Health Classifier</h1>
+    <div class="button-container">
+        <button type="button" onclick="init()">Start Webcam</button>
+    </div>
+    <div id="webcam-container"></div>
+    <div id="label-container"></div>
+    <h2>Sample Images</h2>
+    <div class="sample-container">
+        <img src="healthy1.jpg" alt="Healthy Sample 1" onclick="loadSampleImage('healthy1.jpg')">
+        <img src="healthy2.jpg" alt="Healthy Sample 2" onclick="loadSampleImage('healthy2.jpg')">
+        <img src="healthy3.jpg" alt="Healthy Sample 3" onclick="loadSampleImage('healthy3.jpg')">
+        <img src="rust1.jpg" alt="Rust Sample 1" onclick="loadSampleImage('rust1.jpg')">
+        <img src="rust2.jpg" alt="Rust Sample 2" onclick="loadSampleImage('rust2.jpg')">
+        <img src="rust3.jpg" alt="Rust Sample 3" onclick="loadSampleImage('rust3.jpg')">
+        <img src="mildew1.jpg" alt="Mildew Sample 1" onclick="loadSampleImage('mildew1.jpg')">
+        <img src="mildew2.jpg" alt="Mildew Sample 2" onclick="loadSampleImage('mildew2.jpg')">
+        <img src="mildew3.jpg" alt="Mildew Sample 3" onclick="loadSampleImage('mildew3.jpg')">
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    <script>
+        const URL = "https://teachablemachine.withgoogle.com/models/n9PWK3ckT/";
+        let model, webcam, labelContainer, maxPredictions;
 
-  <div class="button-container">
-    <button id="startBtn" type="button">Start Webcam</button>
-    <button id="stopBtn" type="button" disabled>Stop Webcam</button>
-  </div>
+        async function init() {
+            const modelURL = URL + "model.json";
+            const metadataURL = URL + "metadata.json";
 
-  <div id="status">Idle</div>
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
 
-  <div id="webcam-container"></div>
-  <div id="label-container"></div>
+            const flip = true; 
+            webcam = new tmImage.Webcam(200, 200, flip); 
+            await webcam.setup();
+            await webcam.play();
+            window.requestAnimationFrame(loop);
 
-  <h2>Sample Images</h2>
-  <div class="sample-container" id="sample-container">
-    <img src="healthy1.jpg" alt="Healthy Sample 1" data-path="healthy1.jpg" />
-    <img src="healthy2.jpg" alt="Healthy Sample 2" data-path="healthy2.jpg" />
-    <img src="healthy3.jpg" alt="Healthy Sample 3" data-path="healthy3.jpg" />
+            document.getElementById("webcam-container").appendChild(webcam.canvas);
+            labelContainer = document.getElementById("label-container");
+            labelContainer.innerHTML = "";
+            for (let i = 0; i < maxPredictions; i++) {
+                labelContainer.appendChild(document.createElement("div"));
+            }
+        }
 
-    <img src="rust1.jpg" alt="Rust Sample 1" data-path="rust1.jpg" />
-    <img src="rust2.jpg" alt="Rust Sample 2" data-path="rust2.jpg" />
-    <img src="rust3.jpg" alt="Rust Sample 3" data-path="rust3.jpg" />
+        async function loop() {
+            webcam.update();
+            await predict(webcam.canvas);
+            setTimeout(loop, 100); 
+        }
 
-    <img src="mildew1.jpg" alt="Mildew Sample 1" data-path="mildew1.jpg" />
-    <img src="mildew2.jpg" alt="Mildew Sample 2" data-path="mildew2.jpg" />
-    <img src="mildew3.jpg" alt="Mildew Sample 3" data-path="mildew3.jpg" />
-  </div>
+        async function predict(input) {
+            const prediction = await model.predict(input);
+            for (let i = 0; i < maxPredictions; i++) {
+                const classPrediction = prediction[i].className + ": " + (prediction[i].probability * 100).toFixed(0) + "%";
+                labelContainer.childNodes[i].innerHTML = classPrediction;
+            }
+        }
 
-  <!-- TensorFlow and Teachable Machine -->
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
-
-  <!-- Main script -->
-  <script>
-    const URL = "https://teachablemachine.withgoogle.com/models/n9PWK3ckT/";
-
-    let model;
-    let webcam;
-    let labelContainer;
-    let maxPredictions = 0;
-    let isRunning = false;
-    let loopTimer = null;
-
-    const $ = (id) => document.getElementById(id);
-    const statusEl = $("status");
-
-    document.addEventListener("DOMContentLoaded", () => {
-      $("startBtn").addEventListener("click", start);
-      $("stopBtn").addEventListener("click", stop);
-      labelContainer = $("label-container");
-
-      const sampleContainer = $("sample-container");
-      if (sampleContainer) {
-        sampleContainer.addEventListener("click", (e) => {
-          const target = e.target;
-          if (target.tagName === "IMG" && target.dataset.path) {
-            loadSampleImage(target.dataset.path);
-          }
-        });
-      }
-    });
-
-    async function start() {
-      if (isRunning) return;
-
-      setStatus("loading model...");
-      try {
-        await loadModel();
-      } catch (e) {
-        setStatus("failed to load model");
-        console.error(e);
-        return;
-      }
-
-      setStatus("starting webcam...");
-      try {
-        await startWebcam();
-      } catch (e) {
-        setStatus("webcam permission denied or unavailable");
-        console.error(e);
-        return;
-      }
-
-      labelContainer.innerHTML = "";
-      for (let i = 0; i < maxPredictions; i++) {
-        const div = document.createElement("div");
-        labelContainer.appendChild(div);
-      }
-
-      $("startBtn").disabled = true;
-      $("stopBtn").disabled = false;
-      isRunning = true;
-
-      setStatus("running");
-      loop();
-    }
-
-    async function stop() {
-      if (!isRunning) return;
-
-      isRunning = false;
-      $("startBtn").disabled = false;
-      $("stopBtn").disabled = true;
-
-      if (loopTimer) {
-        clearTimeout(loopTimer);
-        loopTimer = null;
-      }
-
-      try {
-        await webcam.stop();
-      } catch (_) {}
-
-      $("webcam-container").innerHTML = "";
-      setStatus("stopped");
-    }
-
-    async function loadModel() {
-      if (model) return;
-      const modelURL = URL + "model.json";
-      const metadataURL = URL + "metadata.json";
-      model = await tmImage.load(modelURL, metadataURL);
-      maxPredictions = model.getTotalClasses();
-    }
-
-    async function startWebcam() {
-      const flip = true;
-      webcam = new tmImage.Webcam(200, 200, flip);
-      await webcam.setup();
-      await webcam.play();
-      $("webcam-container").appendChild(webcam.canvas);
-    }
-
-    async function loop() {
-      if (!isRunning) return;
-      webcam.update();
-      await predict(webcam.canvas);
-      loopTimer = setTimeout(loop, 100);
-    }
-
-    async function predict(input) {
-      if (!model) return;
-      const prediction = await model.predict(input);
-      for (let i = 0; i < maxPredictions; i++) {
-        const p = prediction[i];
-        const text = `${p.className}: ${(p.probability * 100).toFixed(0)}%`;
-        labelContainer.childNodes[i].textContent = text;
-      }
-    }
-
-    async function loadSampleImage(imagePath) {
-      setStatus("predicting sample...");
-      const img = new Image();
-      img.src = imagePath;
-      img.onload = async () => {
-        await predict(img);
-        setStatus(isRunning ? "running" : "idle");
-      };
-      img.onerror = () => {
-        setStatus("could not load sample image");
-      };
-    }
-
-    function setStatus(text) {
-      if (statusEl) statusEl.textContent = text;
-    }
-  </script>
+        async function loadSampleImage(imagePath) {
+            const img = new Image();
+            img.src = imagePath;
+            img.onload = async () => {
+                await predict(img);
+            };
+        }
+    </script>
 </body>
 </html>
